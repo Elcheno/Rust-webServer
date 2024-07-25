@@ -1,0 +1,2 @@
+[default.databases.diesel_demo]
+url = "postgres://postgres:diesel@localhost:5432/diesel_demo"
