@@ -14,8 +14,8 @@ pub mod schema;
 #[macro_use]
 extern crate rocket;
 
-use rocket::serde::json::json;
 use rocket::serde::json::Value;
+use rocket::serde::json::{json, Json};
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -24,29 +24,29 @@ async fn index(_db: &State<PgPool>) -> Value {
     let mut conn = _db.get().unwrap();
 
     let posts = posts::table
-        .select(Post::as_select())
+        .select(post::as_select())
         .load(&mut conn)
         .expect("Error loading posts");
 
     json!(posts)
 }
 
-use self::models::{NewPost, Post};
+use self::models::{new_post, new_post_dto, post};
 
-#[get("/add")]
-fn add(_db: &State<PgPool>) -> Value {
+#[post("/add", data = "<post_request>")]
+fn create_post(_db: &State<PgPool>, post_request: Json<new_post_dto<'_>>) -> Value {
     use crate::schema::posts;
 
     let mut conn = _db.get().unwrap();
 
-    let new_post = NewPost {
-        title: &"Perro salchicha".to_string(),
-        body: &"es una salchicha y un perro".to_string(),
+    let new_post = new_post {
+        title: &post_request.title,
+        body: &post_request.body,
     };
 
     diesel::insert_into(posts::table)
         .values(&new_post)
-        .returning(Post::as_returning())
+        .returning(post::as_returning())
         .get_result(&mut conn)
         .expect("Error saving new post");
 
@@ -62,7 +62,7 @@ fn add(_db: &State<PgPool>) -> Value {
 //     let result = posts
 //         .limit(1)
 //         .select(Post::as_select())
-//
+
 //         .load(connection)
 //         .expect("Error loading posts");
 
@@ -86,5 +86,7 @@ fn rocket() -> _ {
         .build(connection)
         .expect("Error to build pool");
 
-    rocket::build().mount("/", routes![index, add]).manage(pool)
+    rocket::build()
+        .mount("/", routes![index, create_post])
+        .manage(pool)
 }
