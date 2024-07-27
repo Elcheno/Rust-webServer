@@ -6,7 +6,7 @@ use rocket::serde::{Deserialize, Serialize};
 #[diesel(table_name = crate::schema::posts)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 #[serde(crate = "rocket::serde")]
-pub struct post {
+pub struct Post {
     pub id: i32,
     pub title: String,
     pub body: String,
@@ -15,13 +15,21 @@ pub struct post {
 
 #[derive(Insertable)]
 #[diesel(table_name = posts)]
-pub struct new_post<'a> {
+pub struct NewPost<'a> {
     pub title: &'a str,
     pub body: &'a str,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct new_post_dto<'a> {
+pub struct NewPostDto<'a> {
     pub title: &'a str,
     pub body: &'a str,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UpdatePostDto<'a> {
+    pub id: i32,
+    pub title: &'a str,
+    pub body: &'a str,
+    pub published: bool,
 }
