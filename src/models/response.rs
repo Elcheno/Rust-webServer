@@ -14,6 +14,8 @@ pub enum NetworkResponse {
     NotFound(String),
     #[response(status = 409)]
     Conflict(String),
+    #[response(status = 500)]
+    InternalServerError(String),
 }
 
 #[derive(Serialize, Deserialize)]

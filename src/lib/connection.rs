@@ -1,6 +1,10 @@
 use diesel::pg::PgConnection;
-use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
+use rocket::serde::json::json;
+use rocket::State;
 use std::env;
+
+use crate::models::response::{NetworkResponse, Response, ResponseBody};
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -16,4 +20,19 @@ pub fn build_pool() -> Pool<ConnectionManager<PgConnection>> {
         .build(connection)
         .expect("Error to build pool");
     pool
+}
+
+pub fn get_conn(
+    _db: &State<PgPool>,
+) -> Result<PooledConnection<ConnectionManager<PgConnection>>, NetworkResponse> {
+    let response = _db.get().map_err(|_| {
+        let response = Response {
+            body: ResponseBody::Message(format!(
+                "Internal Server Error - Error connect with database"
+            )),
+        };
+        NetworkResponse::InternalServerError(json!(response).to_string())
+    });
+
+    response
 }

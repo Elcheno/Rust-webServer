@@ -1,6 +1,6 @@
-use crate::lib::connection::PgPool;
+use crate::lib::connection::{get_conn, PgPool};
 
-use crate::models::post_model::{NewPost, NewPostDto, Post};
+use crate::models::post_model::{NewPost, NewPostDto, Post, UpdatePostDto};
 use crate::models::response::{CustomError, NetworkResponse, Response, ResponseBody};
 
 use rocket::serde::json::{json, Json, Value};
@@ -12,7 +12,7 @@ use crate::schema::posts::dsl::*;
 use diesel::prelude::*;
 
 pub async fn get_posts(_db: &State<PgPool>) -> Result<Value, NetworkResponse> {
-    let mut conn = _db.get().unwrap();
+    let mut conn = get_conn(_db)?;
 
     let result = posts::table
         .select(Post::as_select())
@@ -27,9 +27,13 @@ pub async fn get_posts(_db: &State<PgPool>) -> Result<Value, NetworkResponse> {
 
 pub async fn create_post(
     _db: &State<PgPool>,
-    post_request: Json<NewPostDto<'_>>,
+    post_request: &NewPostDto<'_>,
 ) -> Result<Value, NetworkResponse> {
-    let mut conn = _db.get().unwrap();
+    let mut conn = get_conn(_db)?;
+
+    if post_request.title.is_empty() {
+        return Err(NetworkResponse::BadRequest("Title cannot be empty".into()));
+    }
 
     let new_post = NewPost {
         title: post_request.title,
@@ -48,13 +52,7 @@ pub async fn create_post(
 }
 
 pub async fn delete_post(_db: &State<PgPool>, uuid_dto: &str) -> Result<Value, NetworkResponse> {
-    let mut conn = _db.get().map_err(|_| {
-        // Crear un error de tipo Internal Server Error (500) para la gestion de errores como este.
-        let response = Response {
-            body: ResponseBody::Message(format!("Error connect with database")),
-        };
-        NetworkResponse::BadRequest(json!(response).to_string())
-    })?;
+    let mut conn = get_conn(_db)?;
 
     let uuid = uuid_dto.parse::<i32>().map_err(|_| {
         let response = Response {
@@ -65,6 +63,24 @@ pub async fn delete_post(_db: &State<PgPool>, uuid_dto: &str) -> Result<Value, N
 
     let result = diesel::delete(posts)
         .filter(id.eq(uuid))
+        .returning(Post::as_returning())
+        .get_result(&mut conn)
+        .map_err(CustomError::from);
+
+    match result {
+        Ok(post) => Ok(json!(post)),
+        Err(err) => Err(NetworkResponse::from(err)),
+    }
+}
+
+pub async fn update_post(
+    _db: &State<PgPool>,
+    put_request: Json<UpdatePostDto<'_>>,
+) -> Result<Value, NetworkResponse> {
+    let mut conn = get_conn(_db)?;
+
+    let result = diesel::update(posts.find(put_request.id))
+        .set((title.eq(put_request.title), body.eq(put_request.body)))
         .returning(Post::as_returning())
         .get_result(&mut conn)
         .map_err(CustomError::from);
